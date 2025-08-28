@@ -394,6 +394,7 @@ const App: React.FC = () => {
   }, [connectWebSocket]);
 
   // Load sessions on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
