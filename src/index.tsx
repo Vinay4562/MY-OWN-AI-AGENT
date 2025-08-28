@@ -2,14 +2,22 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
+import ResetPasswordPage from './ResetPassword';
 import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+function RootRouter() {
+  if (window.location.pathname === '/reset') {
+    return <ResetPasswordPage />;
+  }
+  return <App />;
+}
+
 root.render(
   <React.StrictMode>
-    <App />
+    <RootRouter />
   </React.StrictMode>
 );
 
