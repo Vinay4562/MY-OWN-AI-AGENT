@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 
-function resolveApiBaseUrl(): string {
-  const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
-  if (override) return override as string;
-  const isHttps = window.location.protocol === 'https:';
-  const httpProto = isHttps ? 'https' : 'http';
-  if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
-    return `${httpProto}://localhost:8000`;
+  function resolveApiBaseUrl(): string {
+    const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
+    if (override) return override as string;
+    const isHttps = window.location.protocol === 'https:';
+    const httpProto = isHttps ? 'https' : 'http';
+    if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
+      return `${httpProto}://localhost:8000`;
+    }
+    // Use Render backend URL
+    return 'https://ai-agent-backend-vh0h.onrender.com';
   }
-  // For single deployment, use relative API URL
-  return `${httpProto}://${window.location.host}/api`;
-}
 
 const ResetPasswordPage: React.FC = () => {
   const [password, setPassword] = useState('');

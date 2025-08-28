@@ -249,7 +249,7 @@ const App: React.FC = () => {
     }
     // For single deployment, WebSocket must connect directly to backend (Vercel proxy doesn't support WebSocket)
     // Use the same backend URL that's working for API calls
-    return 'wss://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app/ws/chat';
+    return 'wss://my-own-ai-agent-3bqm0upis-vinay-kumars-projects-f1559f4a.vercel.app/ws/chat';
   }
 
   function resolveApiBaseUrl(): string {
@@ -260,8 +260,8 @@ const App: React.FC = () => {
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
       return `${httpProto}://localhost:8000`;
     }
-    // For single deployment, use relative API URL
-    return `${httpProto}://${window.location.host}/api`;
+    // Use Render backend URL
+    return 'https://ai-agent-backend-vh0h.onrender.com';
   }
 
   function scheduleReconnect() {
