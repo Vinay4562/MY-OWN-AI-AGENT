@@ -277,9 +277,8 @@ const App: React.FC = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const connectWebSocket = useCallback(() => {
-    // WebSocket temporarily disabled due to connection issues
-    console.log('WebSocket temporarily disabled - using HTTP polling instead');
-    return;
+    // WebSocket replaced with HTTP chat system
+    console.log('Using HTTP-based chat system');
   }, []);
 
   useEffect(() => {
@@ -390,27 +389,79 @@ const App: React.FC = () => {
     }
   }
 
-  function sendOrQueue(payload: string) {
-    const socket = ws.current;
-    if (!socket) {
-      outboundQueue.current.push(payload);
-      intentionalClose.current = false;
-      connectWebSocket();
-      return;
-    }
-    if (socket.readyState === WebSocket.OPEN) {
-      try { socket.send(payload); } catch { outboundQueue.current.push(payload); }
-      return;
-    }
-    // CONNECTING or CLOSING/CLOSED → queue and ensure a connection attempt
-    outboundQueue.current.push(payload);
-    if (socket.readyState === WebSocket.CLOSED) {
-      intentionalClose.current = false;
-      connectWebSocket();
+  async function sendOrQueue(payload: string) {
+    try {
+      // Extract the actual message content
+      let messageContent = payload;
+      let attachment = null;
+      
+      // Check if payload is JSON with attachment
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.prompt) {
+          messageContent = parsed.prompt;
+          attachment = parsed.attachment;
+        }
+      } catch {
+        // Payload is just a string, use as is
+      }
+
+      // Add AI message placeholder
+      const aiIndex = messages.length;
+      setMessages((prev) => [...prev, { role: 'ai', content: '' }]);
+      setStreamTargetIndex(aiIndex);
+
+      // Send HTTP request to chat endpoint
+      const apiBase = resolveApiBaseUrl();
+      const response = await fetch(`${apiBase}/chat/${encodeURIComponent(messageContent)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const aiResponse = data.response || 'Sorry, I encountered an error processing your request.';
+
+      // Update the AI message with the response
+      setMessages((prev) => {
+        const updated = [...prev];
+        if (aiIndex < updated.length && updated[aiIndex]?.role === 'ai') {
+          updated[aiIndex] = { role: 'ai', content: aiResponse };
+        }
+        return updated;
+      });
+
+      // Clear loading state
+      setIsLoading(false);
+      setStreamTargetIndex(null);
+
+      // Add follow-up suggestions
+      maybeAppendFollowUp();
+
+    } catch (error) {
+      console.error('Chat request failed:', error);
+      
+      // Update AI message with error
+      setMessages((prev) => {
+        const updated = [...prev];
+        const aiIndex = updated.length - 1;
+        if (aiIndex >= 0 && updated[aiIndex]?.role === 'ai') {
+          updated[aiIndex] = { role: 'ai', content: 'Sorry, I encountered an error. Please try again.' };
+        }
+        return updated;
+      });
+
+      setIsLoading(false);
+      setStreamTargetIndex(null);
     }
   }
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!input.trim()) return;
 
     const payload = attachedImage && includeAttachment
@@ -437,7 +488,7 @@ const App: React.FC = () => {
       setStreamTargetIndex(aiIndex);
       followUpAddedRef.current = false;
       setEditingIndex(null);
-      sendOrQueue(payload);
+      await sendOrQueue(payload);
       setInput('');
       setAttachedImage(null);
       setIncludeAttachment(true);
@@ -446,7 +497,7 @@ const App: React.FC = () => {
     }
 
     setMessages((prev) => [...prev, { role: 'user', content: input, attachment: attachedImage && includeAttachment ? { data: attachedImage, mime: guessMimeFromDataUrl(attachedImage) } : undefined }]);
-    sendOrQueue(payload);
+    await sendOrQueue(payload);
     setInput('');
     setAttachedImage(null);
     setIncludeAttachment(true);
@@ -1011,7 +1062,7 @@ const App: React.FC = () => {
             </>
           )}
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="p-4 bg-gray-100 dark:bg-gray-800 flex items-center gap-2 relative">
+                        <form onSubmit={async (e) => { e.preventDefault(); await sendMessage(); }} className="p-4 bg-gray-100 dark:bg-gray-800 flex items-center gap-2 relative">
           <input
             type="file"
             accept="image/*"
