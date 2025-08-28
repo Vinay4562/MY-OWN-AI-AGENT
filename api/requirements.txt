@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-dotenv
+google-generativeai
+google-api-python-client
+pytesseract
+Pillow
+PyMuPDF
+PyJWT
+passlib[bcrypt]
+pymongo
