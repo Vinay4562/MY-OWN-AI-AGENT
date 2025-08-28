@@ -282,54 +282,6 @@ const App: React.FC = () => {
     return;
   }, []);
 
-    // WebSocket event handlers temporarily disabled
-    return;
-    
-    if (ws.current) {
-      ws.current.onopen = () => {
-        console.log('WebSocket connected successfully');
-        reconnectAttempts.current = 0;
-        // Drain any queued messages
-        try {
-          while (outboundQueue.current.length > 0 && ws.current && ws.current.readyState === WebSocket.OPEN) {
-            const next = outboundQueue.current.shift();
-            if (next !== undefined) ws.current.send(next);
-          }
-        } catch {}
-      };
-
-      ws.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-
-      ws.current.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
-        if (!intentionalClose.current) {
-          scheduleReconnect();
-        }
-      };
-
-      ws.current.onmessage = (event) => {
-        // WebSocket message handling temporarily disabled
-        console.log('WebSocket message received but handling disabled');
-      };
-
-    ws.current.onerror = () => {
-      setIsLoading(false);
-      // Allow onclose to handle reconnection
-    };
-
-    ws.current.onclose = () => {
-      setIsLoading(false);
-      if (intentionalClose.current) {
-        // reset flag; do not auto-reconnect after a manual stop until the next send
-        return;
-      }
-      scheduleReconnect();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     connectWebSocket();
     return () => {
