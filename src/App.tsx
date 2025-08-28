@@ -277,6 +277,10 @@ const App: React.FC = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const connectWebSocket = useCallback(() => {
+    // Temporarily disable WebSocket due to connection issues
+    console.log('WebSocket temporarily disabled - using HTTP polling instead');
+    return;
+    
     try {
       const url = resolveWebSocketUrl();
       console.log('Attempting WebSocket connection to:', url);
@@ -287,30 +291,34 @@ const App: React.FC = () => {
       return;
     }
 
-    ws.current.onopen = () => {
-      console.log('WebSocket connected successfully');
-      reconnectAttempts.current = 0;
-      // Drain any queued messages
-      try {
-        while (outboundQueue.current.length > 0 && ws.current && ws.current.readyState === WebSocket.OPEN) {
-          const next = outboundQueue.current.shift();
-          if (next !== undefined) ws.current.send(next);
+    // WebSocket event handlers temporarily disabled
+    return;
+    
+    if (ws.current) {
+      ws.current.onopen = () => {
+        console.log('WebSocket connected successfully');
+        reconnectAttempts.current = 0;
+        // Drain any queued messages
+        try {
+          while (outboundQueue.current.length > 0 && ws.current && ws.current.readyState === WebSocket.OPEN) {
+            const next = outboundQueue.current.shift();
+            if (next !== undefined) ws.current.send(next);
+          }
+        } catch {}
+      };
+
+      ws.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      ws.current.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        if (!intentionalClose.current) {
+          scheduleReconnect();
         }
-      } catch {}
-    };
+      };
 
-    ws.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    ws.current.onclose = (event) => {
-      console.log('WebSocket closed:', event.code, event.reason);
-      if (!intentionalClose.current) {
-        scheduleReconnect();
-      }
-    };
-
-    ws.current.onmessage = (event) => {
+      ws.current.onmessage = (event) => {
       if (event.data === '[END]') {
         endAfterBufferRef.current = true;
         // If nothing to type, finish now
