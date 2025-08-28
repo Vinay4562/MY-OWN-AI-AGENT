@@ -319,78 +319,9 @@ const App: React.FC = () => {
       };
 
       ws.current.onmessage = (event) => {
-      if (event.data === '[END]') {
-        endAfterBufferRef.current = true;
-        // If nothing to type, finish now
-        if (!typingBufferRef.current) {
-        setIsLoading(false);
-        setStreamTargetIndex(null);
-          maybeAppendFollowUp();
-        }
-        return;
-      }
-      // Ensure an AI message exists at the target before typing
-      setMessages((prev) => {
-        const target = streamTargetIndexRef.current;
-        if (target !== null) {
-          const updated = [...prev];
-          if (!(target < updated.length && updated[target] && updated[target].role === 'ai')) {
-            const before = updated.slice(0, target);
-            const after = updated.slice(target);
-            return [...before, { role: 'ai', content: '' }, ...after];
-          }
-          return prev;
-        }
-        const last = prev[prev.length - 1];
-        if (!(last && last.role === 'ai')) {
-          return [...prev, { role: 'ai', content: '' }];
-        }
-        return prev;
-      });
-
-      // Buffer incoming text and start typewriter loop if idle
-      typingBufferRef.current += event.data as string;
-      if (typingTimerRef.current === null) {
-        typingTimerRef.current = window.setInterval(() => {
-          const target = streamTargetIndexRef.current;
-          if (!typingBufferRef.current) {
-            if (endAfterBufferRef.current) {
-              // Done
-              window.clearInterval(typingTimerRef.current!);
-              typingTimerRef.current = null;
-              endAfterBufferRef.current = false;
-              setIsLoading(false);
-              setStreamTargetIndex(null);
-              maybeAppendFollowUp();
-            }
-            return;
-          }
-          const chunkSize = Math.max(1, Math.min(TYPING_CHARS_PER_TICK, typingBufferRef.current.length));
-          const nextChars = typingBufferRef.current.slice(0, chunkSize);
-          if (nextChars.length === 0) return;
-          typingBufferRef.current = typingBufferRef.current.slice(chunkSize);
-          setMessages((prev) => {
-            if (target !== null) {
-              const updated = [...prev];
-              if (target < updated.length && updated[target] && updated[target].role === 'ai') {
-                const existing = updated[target];
-                updated[target] = { ...existing, content: (existing.content || '') + nextChars };
-                return updated;
-              }
-              // Fallback append at end
-              return [...prev, { role: 'ai', content: nextChars }];
-            }
-        const last = prev[prev.length - 1];
-        if (last && last.role === 'ai') {
-          const updated = [...prev];
-              updated[updated.length - 1] = { ...last, content: last.content + nextChars };
-          return updated;
-        }
-            return [...prev, { role: 'ai', content: nextChars }];
-          });
-        }, TYPING_DELAY_MS);
-      }
-    };
+        // WebSocket message handling temporarily disabled
+        console.log('WebSocket message received but handling disabled');
+      };
 
     ws.current.onerror = () => {
       setIsLoading(false);
