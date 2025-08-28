@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 type CodeRendererProps = {
@@ -119,6 +119,25 @@ const App: React.FC = () => {
     } catch {}
   }, []);
 
+  const createNewChat = useCallback(() => {
+    const id = generateSessionId();
+    const now = new Date().toISOString();
+    const newSession: ChatSession = {
+      id,
+      title: 'New chat',
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    };
+    setSessions((prev) => {
+      const next = [newSession, ...prev];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    setCurrentSessionId(id);
+    setMessages([]);
+  }, []);
+
   // Persist chats per user in backend when authenticated
   useEffect(() => {
     if (!authToken) return;
@@ -148,7 +167,7 @@ const App: React.FC = () => {
         }, 0);
       } catch {}
     })();
-  }, [authToken]);
+  }, [authToken, createNewChat]);
 
   function signOut() {
     try {
@@ -250,7 +269,7 @@ const App: React.FC = () => {
     }, delay);
   }
 
-  function connectWebSocket() {
+  const connectWebSocket = useCallback(() => {
     try {
       const url = resolveWebSocketUrl();
       ws.current = new WebSocket(url);
@@ -357,7 +376,7 @@ const App: React.FC = () => {
       }
       scheduleReconnect();
     };
-  }
+  }, []);
 
   useEffect(() => {
     connectWebSocket();
@@ -366,7 +385,7 @@ const App: React.FC = () => {
       intentionalClose.current = true;
       ws.current?.close();
     };
-  }, []);
+  }, [connectWebSocket]);
 
   // Load sessions on mount
   useEffect(() => {
@@ -420,25 +439,6 @@ const App: React.FC = () => {
       return updated;
     });
   }, [messages, currentSessionId]);
-
-  function createNewChat() {
-    const id = generateSessionId();
-    const now = new Date().toISOString();
-    const newSession: ChatSession = {
-      id,
-      title: 'New chat',
-      createdAt: now,
-      updatedAt: now,
-      messages: [],
-    };
-    setSessions((prev) => {
-      const next = [newSession, ...prev];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-    setCurrentSessionId(id);
-    setMessages([]);
-  }
 
   function selectSession(id: string) {
     const session = sessions.find((s) => s.id === id);
