@@ -8,8 +8,8 @@ function resolveApiBaseUrl(): string {
   if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
     return `${httpProto}://localhost:8000`;
   }
-  // Use the deployed backend URL for production
-  return 'https://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app';
+  // For single deployment, use relative API URL
+  return `${httpProto}://${window.location.host}/api`;
 }
 
 const ResetPasswordPage: React.FC = () => {

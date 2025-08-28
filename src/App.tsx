@@ -247,7 +247,8 @@ const App: React.FC = () => {
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
       return `${proto}://localhost:8000/ws/chat`;
     }
-    // Use the deployed backend URL for production
+    // For single deployment, WebSocket must connect directly to backend (Vercel proxy doesn't support WebSocket)
+    // Use the same backend URL that's working for API calls
     return 'wss://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app/ws/chat';
   }
 
@@ -259,8 +260,8 @@ const App: React.FC = () => {
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
       return `${httpProto}://localhost:8000`;
     }
-    // Use the deployed backend URL for production
-    return 'https://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app';
+    // For single deployment, use relative API URL
+    return `${httpProto}://${window.location.host}/api`;
   }
 
   function scheduleReconnect() {
@@ -278,13 +279,16 @@ const App: React.FC = () => {
   const connectWebSocket = useCallback(() => {
     try {
       const url = resolveWebSocketUrl();
+      console.log('Attempting WebSocket connection to:', url);
       ws.current = new WebSocket(url);
-    } catch {
+    } catch (error) {
+      console.error('WebSocket connection error:', error);
       scheduleReconnect();
       return;
     }
 
     ws.current.onopen = () => {
+      console.log('WebSocket connected successfully');
       reconnectAttempts.current = 0;
       // Drain any queued messages
       try {
@@ -293,6 +297,17 @@ const App: React.FC = () => {
           if (next !== undefined) ws.current.send(next);
         }
       } catch {}
+    };
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.current.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason);
+      if (!intentionalClose.current) {
+        scheduleReconnect();
+      }
     };
 
     ws.current.onmessage = (event) => {
