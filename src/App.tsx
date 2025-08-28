@@ -277,19 +277,10 @@ const App: React.FC = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const connectWebSocket = useCallback(() => {
-    // Temporarily disable WebSocket due to connection issues
+    // WebSocket temporarily disabled due to connection issues
     console.log('WebSocket temporarily disabled - using HTTP polling instead');
     return;
-    
-    try {
-      const url = resolveWebSocketUrl();
-      console.log('Attempting WebSocket connection to:', url);
-      ws.current = new WebSocket(url);
-    } catch (error) {
-      console.error('WebSocket connection error:', error);
-      scheduleReconnect();
-      return;
-    }
+  }, []);
 
     // WebSocket event handlers temporarily disabled
     return;
