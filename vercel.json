@@ -2,24 +2,19 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
   "installCommand": "cd frontend && npm install",
-  "framework": "@vercel/static-build",
+  "framework": "create-react-app",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "https://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app/api/$1"
     },
     {
       "source": "/ws/(.*)",
-      "destination": "/api/ws/$1"
+      "destination": "wss://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app/ws/$1"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "functions": {
-    "api/**/*.py": {
-      "runtime": "@vercel/python"
-    }
-  }
+  ]
 }
