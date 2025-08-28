@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, APIRouter
+from fastapi import FastAPI, APIRouter
 from fastapi import Body, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from google.generativeai import GenerativeModel, configure
@@ -43,7 +43,7 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 # Allow CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://my-ai-agent-frontend.vercel.app"],
+    allow_origins=["*"],  # Allow all origins for single deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -221,36 +221,12 @@ async def process_query_streaming(query: str, attachment: dict | None = None):
         logger.error(f"Gemini streaming error: {e}")
         yield f"Error: {str(e)}"
 
-# WebSocket endpoint for realtime chat
-@app.websocket("/ws/chat")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            raw = await websocket.receive_text()
-            # Expect either a plain string (legacy) or a JSON string { prompt, image, attachment }
-            query = raw
-            try:
-                import json
-                payload = json.loads(raw)
-                query = payload.get("prompt", raw)
-                image_data_url = payload.get("image")  # deprecated
-                attachment = payload.get("attachment")  # { data: dataUrl, mime: string }
-            except Exception:
-                image_data_url = None
-                attachment = None
+# WebSocket endpoint removed - Vercel serverless functions don't support WebSockets
+# Using HTTP endpoints instead
 
-            # Backward compatibility: map legacy image field to attachment
-            if image_data_url and not attachment:
-                attachment = {"data": image_data_url, "mime": "image/*"}
-
-            async for chunk in process_query_streaming(query, attachment):
-                await websocket.send_text(chunk)
-            await websocket.send_text("[END]")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        await websocket.send_text(f"Error: {str(e)}")
-        await websocket.close()
+@app.get("/")
+async def root():
+    return {"message": "AI Agent API is running!"}
 
 # HTTP endpoint for testing
 @app.get("/chat/{query}")
@@ -326,7 +302,7 @@ def _decode_jwt(token: str) -> Optional[dict]:
         return None
 
 
-@router.post("/auth/signup")
+@app.post("/auth/signup")
 def auth_signup(payload: dict = Body(...)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -346,7 +322,7 @@ def auth_signup(payload: dict = Body(...)):
     return {"token": token, "user": {"id": user_id, "email": email, "username": username}}
 
 
-@router.post("/auth/signin")
+@app.post("/auth/signin")
 def auth_signin(payload: dict = Body(...)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -362,7 +338,7 @@ def auth_signin(payload: dict = Body(...)):
     return {"token": token, "user": {"id": user_id, "email": email, "username": user.get("username") or email}}
 
 
-@router.post("/auth/forgot")
+@app.post("/auth/forgot")
 def auth_forgot(payload: dict = Body(...)):
     # Generate a password reset token and email a link to the user
     if users_col is None:
@@ -395,7 +371,7 @@ def auth_forgot(payload: dict = Body(...)):
     return {"ok": True}
 
 
-@router.post("/auth/reset")
+@app.post("/auth/reset")
 def auth_reset(payload: dict = Body(...)):
     if users_col is None:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -445,7 +421,7 @@ def auth_delete(authorization: str | None = Header(default=None)):
     chats_col.delete_many({"userId": user_id})
     return {"ok": True}
 
-@router.get("/chats")
+@app.get("/chats")
 def list_chats(authorization: str | None = Header(default=None)):
     if chats_col is None:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -462,7 +438,7 @@ def list_chats(authorization: str | None = Header(default=None)):
     return {"chats": sessions}
 
 
-@router.post("/chats")
+@app.post("/chats")
 def save_chats(payload: dict = Body(...), authorization: str | None = Header(default=None)):
     if chats_col is None:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -489,14 +465,8 @@ def save_chats(payload: dict = Body(...), authorization: str | None = Header(def
     return {"ok": True}
 
 
-@app.get("/")
-async def root():
-    return {"message": "AI Agent Backend is running!", "status": "healthy"}
-
-app.include_router(router)
+# Router removed - all endpoints are now at app level
 
 if __name__ == "__main__":
     import uvicorn
-    import os
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
