@@ -9,10 +9,6 @@
       "destination": "https://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app/api/$1"
     },
     {
-      "source": "/ws/(.*)",
-      "destination": "wss://my-own-ai-agent-e10ngttz7-vinay-kumars-projects-f1559f4a.vercel.app/ws/$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
