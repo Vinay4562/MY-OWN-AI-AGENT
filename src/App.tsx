@@ -478,6 +478,7 @@ const App: React.FC = () => {
         const apiBase = resolveApiBaseUrl();
         const isRenderBackend = !!apiBase && /onrender\.com$/i.test(new URL(apiBase).hostname);
         const chatUrlBase = apiBase ? `${apiBase}/chat` : '/api/chat';
+        try { console.log('Chat using HTTP', { apiBase, isRenderBackend, chatUrlBase }); } catch {}
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
         const postBody = attachment ? { prompt: messageContent, attachment } : { prompt: messageContent };
@@ -497,17 +498,24 @@ const App: React.FC = () => {
         try {
           if (isRenderBackend) {
             // Render backend expects GET /chat/{query}
-            const getResp = await fetchWithTimeout(`${apiBase}/chat/${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
-            if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
-            data = await getResp.json();
+            const url = `${apiBase}/chat/${encodeURIComponent(messageContent)}`;
+            const getResp = await fetchWithTimeout(url, { method: 'GET', headers });
+            if (!getResp.ok) {
+              const text = await getResp.text().catch(()=> '');
+              throw new Error(`HTTP ${getResp.status}: ${getResp.statusText} ${text}`);
+            }
+            try { data = await getResp.json(); } catch { data = { response: await getResp.text().catch(()=> '') }; }
           } else {
             let response = await fetchWithTimeout(chatUrlBase, { method: 'POST', headers, body: JSON.stringify(postBody) });
             if (!response.ok) {
               const getResp = await fetchWithTimeout(`${chatUrlBase}?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
-              if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
-              data = await getResp.json();
+              if (!getResp.ok) {
+                const text = await getResp.text().catch(()=> '');
+                throw new Error(`HTTP ${getResp.status}: ${getResp.statusText} ${text}`);
+              }
+              try { data = await getResp.json(); } catch { data = { response: await getResp.text().catch(()=> '') }; }
             } else {
-              data = await response.json();
+              try { data = await response.json(); } catch { data = { response: await response.text().catch(()=> '') }; }
             }
           }
         } catch (e) {
@@ -515,9 +523,13 @@ const App: React.FC = () => {
           try {
             const fallbackBase = 'https://ai-agent-backend-vh0h.onrender.com';
             // Use the Render path-param endpoint directly
-            const get2 = await fetchWithTimeout(`${fallbackBase}/chat/${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
-            if (!get2.ok) throw new Error(`HTTP ${get2.status}: ${get2.statusText}`);
-            data = await get2.json();
+            const fallbackUrl = `${fallbackBase}/chat/${encodeURIComponent(messageContent)}`;
+            const get2 = await fetchWithTimeout(fallbackUrl, { method: 'GET', headers });
+            if (!get2.ok) {
+              const text = await get2.text().catch(()=> '');
+              throw new Error(`HTTP ${get2.status}: ${get2.statusText} ${text}`);
+            }
+            try { data = await get2.json(); } catch { data = { response: await get2.text().catch(()=> '') }; }
           } catch (e2) {
             // Ultimately give a user-facing error
             setMessages((prev) => {
@@ -537,8 +549,8 @@ const App: React.FC = () => {
         const aiResponse = data?.response || data?.answer || data?.text || data?.message || data?.output || 'Sorry, I encountered an error processing your request.';
         setMessages((prev) => {
           const updated = [...prev];
-          const idx = Math.min(aiIndex, updated.length - 1);
-          if (idx >= 0 && updated[idx]?.role === 'ai') {
+          const idx = streamTargetIndexRef.current !== null ? streamTargetIndexRef.current : Math.min(aiIndex, updated.length - 1);
+          if (idx >= 0 && idx < updated.length && updated[idx]?.role === 'ai') {
             updated[idx] = { role: 'ai', content: aiResponse };
           }
           return updated;
