@@ -411,27 +411,42 @@ const App: React.FC = () => {
       setMessages((prev) => [...prev, { role: 'ai', content: '' }]);
       setStreamTargetIndex(aiIndex);
 
-      // Send HTTP request to chat endpoint
-      const apiBase = resolveApiBaseUrl();
-      console.log('Making chat request to:', `${apiBase}/chat/${encodeURIComponent(messageContent)}`);
+      // Send HTTP request to chat endpoint (Vercel)
+      const chatUrlBase = 'https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app/api/chat';
+      console.log('Making chat request to:', chatUrlBase);
       console.log('Request payload:', { messageContent, attachment });
-      
-      const response = await fetch(`${apiBase}/chat/${encodeURIComponent(messageContent)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+      // Prefer POST with JSON body; fallback to GET with query if POST fails
+      const postBody = attachment ? { prompt: messageContent, attachment } : { prompt: messageContent };
+      let response = await fetch(chatUrlBase, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(postBody)
+      });
+
+      console.log('POST Response status:', response.status);
+      console.log('POST Response headers:', response.headers);
+
+      let data: any;
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        console.warn('POST failed, trying GET fallback...');
+        const fallbackUrl = `${chatUrlBase}?q=${encodeURIComponent(messageContent)}`;
+        console.log('GET fallback URL:', fallbackUrl);
+        const getResp = await fetch(fallbackUrl, { method: 'GET', headers });
+        console.log('GET Response status:', getResp.status);
+        console.log('GET Response headers:', getResp.headers);
+        if (!getResp.ok) {
+          throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
+        }
+        data = await getResp.json();
+      } else {
+        data = await response.json();
       }
 
-      const data = await response.json();
-      const aiResponse = data.response || 'Sorry, I encountered an error processing your request.';
+      const aiResponse = data.response || data.answer || data.text || data.message || data.output || 'Sorry, I encountered an error processing your request.';
 
       // Update the AI message with the response
       setMessages((prev) => {
