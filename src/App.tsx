@@ -247,9 +247,8 @@ const App: React.FC = () => {
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
       return `${proto}://localhost:8000/ws/chat`;
     }
-    // For single deployment, WebSocket must connect directly to backend (Vercel proxy doesn't support WebSocket)
-    // Use the same backend URL that's working for API calls
-    return 'wss://my-own-ai-agent-3bqm0upis-vinay-kumars-projects-f1559f4a.vercel.app/ws/chat';
+    // Connect directly to Render backend for WebSocket streaming
+    return 'wss://ai-agent-backend-vh0h.onrender.com/ws/chat';
   }
 
   function resolveApiBaseUrl(): string {
@@ -277,8 +276,57 @@ const App: React.FC = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const connectWebSocket = useCallback(() => {
-    // WebSocket replaced with HTTP chat system
-    console.log('Using HTTP-based chat system');
+    try {
+      if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      const url = resolveWebSocketUrl();
+      const socket = new WebSocket(url);
+      ws.current = socket;
+
+      socket.onopen = () => {
+        reconnectAttempts.current = 0;
+        // Flush any queued messages
+        try {
+          while (outboundQueue.current.length > 0 && socket.readyState === WebSocket.OPEN) {
+            const next = outboundQueue.current.shift();
+            if (next != null) socket.send(next);
+          }
+        } catch {}
+      };
+
+      socket.onmessage = (event: MessageEvent) => {
+        const text = typeof event.data === 'string' ? event.data : '';
+        if (!text) return;
+        if (text === '[END]') {
+          setIsLoading(false);
+          setStreamTargetIndex(null);
+          maybeAppendFollowUp();
+          return;
+        }
+        // Append chunk to the active AI message being streamed
+        setMessages((prev) => {
+          const idx = streamTargetIndexRef.current;
+          if (idx === null || idx >= prev.length) return prev;
+          const curr = prev[idx];
+          if (!curr || curr.role !== 'ai') return prev;
+          const updated = [...prev];
+          updated[idx] = { role: 'ai', content: (curr.content || '') + text };
+          return updated;
+        });
+      };
+
+      socket.onerror = () => {
+        try { socket.close(); } catch {}
+      };
+
+      socket.onclose = () => {
+        if (!intentionalClose.current) scheduleReconnect();
+      };
+    } catch (e) {
+      // Fall back silently; HTTP path will cover
+      console.warn('WebSocket connect error; falling back to HTTP');
+    }
   }, []);
 
   useEffect(() => {
@@ -411,58 +459,57 @@ const App: React.FC = () => {
       setMessages((prev) => [...prev, { role: 'ai', content: '' }]);
       setStreamTargetIndex(aiIndex);
 
-      // Send HTTP request to same-origin API endpoint (Vercel)
-      const chatUrlBase = '/api/chat';
-      console.log('Making chat request to:', chatUrlBase);
-      console.log('Request payload:', { messageContent, attachment });
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
-      // Prefer POST with JSON body; fallback to GET with query if POST fails
-      const postBody = attachment ? { prompt: messageContent, attachment } : { prompt: messageContent };
-      let response = await fetch(chatUrlBase, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(postBody)
-      });
-
-      console.log('POST Response status:', response.status);
-      console.log('POST Response headers:', response.headers);
-
-      let data: any;
-      if (!response.ok) {
-        console.warn('POST failed, trying GET fallback...');
-        const fallbackUrl = `${chatUrlBase}?q=${encodeURIComponent(messageContent)}`;
-        console.log('GET fallback URL:', fallbackUrl);
-        const getResp = await fetch(fallbackUrl, { method: 'GET', headers });
-        console.log('GET Response status:', getResp.status);
-        console.log('GET Response headers:', getResp.headers);
-        if (!getResp.ok) {
-          throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
+      // Try WebSocket first for streaming
+      const payloadToSend = attachment ? JSON.stringify({ prompt: messageContent, attachment }) : messageContent;
+      let usedWebSocket = false;
+      try {
+        connectWebSocket();
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+          ws.current.send(payloadToSend);
+          usedWebSocket = true;
+        } else if (ws.current && ws.current.readyState === WebSocket.CONNECTING) {
+          outboundQueue.current.push(payloadToSend);
+          usedWebSocket = true;
         }
-        data = await getResp.json();
-      } else {
-        data = await response.json();
+      } catch {}
+
+      if (!usedWebSocket) {
+        // Fallback to HTTP on same-origin API
+        const chatUrlBase = '/api/chat';
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        const postBody = attachment ? { prompt: messageContent, attachment } : { prompt: messageContent };
+        let response = await fetch(chatUrlBase, { method: 'POST', headers, body: JSON.stringify(postBody) });
+        if (!response.ok) {
+          const getResp = await fetch(`${chatUrlBase}?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
+          if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
+          const data = await getResp.json();
+          const aiResponse = data.response || data.answer || data.text || data.message || data.output || 'Sorry, I encountered an error processing your request.';
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (aiIndex < updated.length && updated[aiIndex]?.role === 'ai') {
+              updated[aiIndex] = { role: 'ai', content: aiResponse };
+            }
+            return updated;
+          });
+          setIsLoading(false);
+          setStreamTargetIndex(null);
+          maybeAppendFollowUp();
+        } else {
+          const data = await response.json();
+          const aiResponse = data.response || data.answer || data.text || data.message || data.output || 'Sorry, I encountered an error processing your request.';
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (aiIndex < updated.length && updated[aiIndex]?.role === 'ai') {
+              updated[aiIndex] = { role: 'ai', content: aiResponse };
+            }
+            return updated;
+          });
+          setIsLoading(false);
+          setStreamTargetIndex(null);
+          maybeAppendFollowUp();
+        }
       }
-
-      const aiResponse = data.response || data.answer || data.text || data.message || data.output || 'Sorry, I encountered an error processing your request.';
-
-      // Update the AI message with the response
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (aiIndex < updated.length && updated[aiIndex]?.role === 'ai') {
-          updated[aiIndex] = { role: 'ai', content: aiResponse };
-        }
-        return updated;
-      });
-
-      // Clear loading state
-      setIsLoading(false);
-      setStreamTargetIndex(null);
-
-      // Add follow-up suggestions
-      maybeAppendFollowUp();
 
     } catch (error) {
       console.error('Chat request failed:', error);
