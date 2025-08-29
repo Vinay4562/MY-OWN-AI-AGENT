@@ -2,14 +2,23 @@ import React, { useState } from 'react';
 
   function resolveApiBaseUrl(): string {
     const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
-    if (override) return override as string;
+    console.log('Environment override:', process.env.REACT_APP_API_URL);
+    console.log('Window override:', (window as any)._API_URL);
+    if (override) {
+      console.log('Using override URL:', override);
+      return override as string;
+    }
     const isHttps = window.location.protocol === 'https:';
     const httpProto = isHttps ? 'https' : 'http';
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
-      return `${httpProto}://localhost:8000`;
+      const localUrl = `${httpProto}://localhost:8000`;
+      console.log('Using local URL:', localUrl);
+      return localUrl;
     }
     // Use Render backend URL
-    return 'https://ai-agent-backend-vh0h.onrender.com';
+    const renderUrl = 'https://ai-agent-backend-vh0h.onrender.com';
+    console.log('Using Render URL:', renderUrl);
+    return renderUrl;
   }
 
 const ResetPasswordPage: React.FC = () => {
