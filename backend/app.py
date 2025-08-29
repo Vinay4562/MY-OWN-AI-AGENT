@@ -395,7 +395,7 @@ def auth_forgot(payload: dict = Body(...)):
         except Exception:
             users_col.update_one({"_id": user.get("_id")}, {"$set": {"resetToken": token, "resetTokenExp": expires}})
         # Use the current frontend URL instead of the old APP_URL
-        reset_link = "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app/reset?token={token}"
+        reset_link = f"https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app/reset?token={token}"
         subject = "Password reset for My AI Agent"
         html = f"""
         <p>Hello,</p>
