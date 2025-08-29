@@ -474,41 +474,74 @@ const App: React.FC = () => {
       } catch {}
 
       if (!usedWebSocket) {
-        // Fallback to HTTP on same-origin API
-        const chatUrlBase = '/api/chat';
+        // Fallback to HTTP with timeout and multi-endpoint strategy
+        const apiBase = resolveApiBaseUrl();
+        const chatUrlBase = apiBase ? `${apiBase}/chat` : '/api/chat';
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
         const postBody = attachment ? { prompt: messageContent, attachment } : { prompt: messageContent };
-        let response = await fetch(chatUrlBase, { method: 'POST', headers, body: JSON.stringify(postBody) });
-        if (!response.ok) {
-          const getResp = await fetch(`${chatUrlBase}?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
-          if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
-          const data = await getResp.json();
-          const aiResponse = data.response || data.answer || data.text || data.message || data.output || 'Sorry, I encountered an error processing your request.';
-          setMessages((prev) => {
-            const updated = [...prev];
-            if (aiIndex < updated.length && updated[aiIndex]?.role === 'ai') {
-              updated[aiIndex] = { role: 'ai', content: aiResponse };
+
+        const fetchWithTimeout = async (input: RequestInfo, init: RequestInit, ms = 15000) => {
+          const ctrl = new AbortController();
+          const t = window.setTimeout(() => ctrl.abort(), ms);
+          try {
+            const res = await fetch(input, { ...init, signal: ctrl.signal });
+            return res;
+          } finally {
+            window.clearTimeout(t);
+          }
+        };
+
+        let data: any = null;
+        try {
+          let response = await fetchWithTimeout(chatUrlBase, { method: 'POST', headers, body: JSON.stringify(postBody) });
+          if (!response.ok) {
+            const getResp = await fetchWithTimeout(`${chatUrlBase}?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
+            if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
+            data = await getResp.json();
+          } else {
+            data = await response.json();
+          }
+        } catch (e) {
+          // If same-origin fails/timeouts, try direct Render backend as a fallback
+          try {
+            const fallbackBase = 'https://ai-agent-backend-vh0h.onrender.com';
+            let resp2 = await fetchWithTimeout(`${fallbackBase}/chat`, { method: 'POST', headers, body: JSON.stringify(postBody) });
+            if (!resp2.ok) {
+              const get2 = await fetchWithTimeout(`${fallbackBase}/chat?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
+              if (!get2.ok) throw new Error(`HTTP ${get2.status}: ${get2.statusText}`);
+              data = await get2.json();
+            } else {
+              data = await resp2.json();
             }
-            return updated;
-          });
-          setIsLoading(false);
-          setStreamTargetIndex(null);
-          maybeAppendFollowUp();
-        } else {
-          const data = await response.json();
-          const aiResponse = data.response || data.answer || data.text || data.message || data.output || 'Sorry, I encountered an error processing your request.';
-          setMessages((prev) => {
-            const updated = [...prev];
-            if (aiIndex < updated.length && updated[aiIndex]?.role === 'ai') {
-              updated[aiIndex] = { role: 'ai', content: aiResponse };
-            }
-            return updated;
-          });
-          setIsLoading(false);
-          setStreamTargetIndex(null);
-          maybeAppendFollowUp();
+          } catch (e2) {
+            // Ultimately give a user-facing error
+            setMessages((prev) => {
+              const updated = [...prev];
+              const idx = Math.min(aiIndex, updated.length - 1);
+              if (idx >= 0 && updated[idx]?.role === 'ai') {
+                updated[idx] = { role: 'ai', content: 'Sorry, I could not reach the chat service. Please try again.' };
+              }
+              return updated;
+            });
+            setIsLoading(false);
+            setStreamTargetIndex(null);
+            return;
+          }
         }
+
+        const aiResponse = data?.response || data?.answer || data?.text || data?.message || data?.output || 'Sorry, I encountered an error processing your request.';
+        setMessages((prev) => {
+          const updated = [...prev];
+          const idx = Math.min(aiIndex, updated.length - 1);
+          if (idx >= 0 && updated[idx]?.role === 'ai') {
+            updated[idx] = { role: 'ai', content: aiResponse };
+          }
+          return updated;
+        });
+        setIsLoading(false);
+        setStreamTargetIndex(null);
+        maybeAppendFollowUp();
       }
 
     } catch (error) {
@@ -570,13 +603,13 @@ const App: React.FC = () => {
     }
 
     setMessages((prev) => [...prev, { role: 'user', content: input, attachment: attachedImage && includeAttachment ? { data: attachedImage, mime: guessMimeFromDataUrl(attachedImage) } : undefined }]);
+    setIsLoading(true);
+    followUpAddedRef.current = false;
     await sendOrQueue(payload);
     setInput('');
     setAttachedImage(null);
     setIncludeAttachment(true);
     setIsAttachMenuOpen(false);
-    setIsLoading(true);
-    followUpAddedRef.current = false;
   };
 
   function stopStreaming() {
