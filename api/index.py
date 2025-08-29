@@ -228,10 +228,26 @@ async def process_query_streaming(query: str, attachment: dict | None = None):
 async def root():
     return {"message": "AI Agent API is running!"}
 
-# HTTP endpoint for testing
+# HTTP chat endpoints (support both path, query, and POST body on Vercel)
 @app.get("/chat/{query}")
-async def chat(query: str):
+async def chat_path(query: str):
     response = await process_query_non_streaming(query)
+    return {"response": response}
+
+@app.get("/chat")
+async def chat_query(q: str = ""):
+    if not q:
+        raise HTTPException(status_code=400, detail="Missing q")
+    response = await process_query_non_streaming(q)
+    return {"response": response}
+
+@app.post("/chat")
+async def chat_post(payload: dict = Body(...)):
+    prompt = (payload or {}).get("prompt") or (payload or {}).get("query") or ""
+    attachment = (payload or {}).get("attachment")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise HTTPException(status_code=400, detail="Missing prompt")
+    response = await process_query_non_streaming(prompt, attachment if isinstance(attachment, dict) else None)
     return {"response": response}
 
 
