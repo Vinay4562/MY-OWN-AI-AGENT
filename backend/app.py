@@ -44,18 +44,15 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # Local development
-        "https://my-own-ai-agent.vercel.app",  # Your main Vercel domain
-        "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app",  # Your preview Vercel domain
-        "https://*.vercel.app",  # Any Vercel subdomain
-        "https://*.onrender.com",  # Any Render subdomain
-        "https://my-own-ai-agent-*.vercel.app",  # Your specific Vercel project pattern
+        "http://localhost:3000",
+        "https://my-own-ai-agent.vercel.app",
     ],
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*vercel\.app$|https://([a-z0-9-]+\.)*onrender\.com$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
     allow_headers=["*", "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     expose_headers=["*"],
-    max_age=86400,  # Cache preflight for 24 hours
+    max_age=86400,
 )
 
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
