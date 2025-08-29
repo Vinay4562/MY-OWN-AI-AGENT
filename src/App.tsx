@@ -411,8 +411,8 @@ const App: React.FC = () => {
       setMessages((prev) => [...prev, { role: 'ai', content: '' }]);
       setStreamTargetIndex(aiIndex);
 
-      // Send HTTP request to chat endpoint (Vercel)
-      const chatUrlBase = 'https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app/api/chat';
+      // Send HTTP request to same-origin API endpoint (Vercel)
+      const chatUrlBase = '/api/chat';
       console.log('Making chat request to:', chatUrlBase);
       console.log('Request payload:', { messageContent, attachment });
 
