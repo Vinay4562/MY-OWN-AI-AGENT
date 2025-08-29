@@ -5,6 +5,10 @@
   "installCommand": "",
   "rewrites": [
     {
+      "source": "/api/chat",
+      "destination": "/api/chat.py"
+    },
+    {
       "source": "/api/test",
       "destination": "/api/test.py"
     },
