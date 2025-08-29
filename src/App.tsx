@@ -253,17 +253,15 @@ const App: React.FC = () => {
 
   function resolveApiBaseUrl(): string {
     const isOnVercel = /\.vercel\.app$/i.test(window.location.hostname);
-    // Force same-origin on Vercel to avoid CORS and external outages
-    if (!isOnVercel) {
-      const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
-      if (override) return override as string;
-    }
+    const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
+    if (override) return override as string;
     const isHttps = window.location.protocol === 'https:';
     const httpProto = isHttps ? 'https' : 'http';
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
       return `${httpProto}://localhost:8000`;
     }
-    // On Vercel, use same-origin serverless API to avoid CORS
+    // On Vercel, prefer dedicated Render backend
+    if (isOnVercel) return 'https://ai-agent-backend-vh0h.onrender.com';
     return '';
   }
 
