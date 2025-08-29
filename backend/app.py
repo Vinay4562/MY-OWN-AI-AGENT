@@ -53,7 +53,7 @@ app.add_middleware(
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-    allow_headers=["*", "Authorization", "Content-Type", "Accept"],
+    allow_headers=["*", "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     expose_headers=["*"],
     max_age=86400,  # Cache preflight for 24 hours
 )
@@ -315,7 +315,19 @@ async def auth_options(path: str):
 # Specific OPTIONS handler for delete endpoint
 @router.options("/auth/delete")
 async def delete_options():
-    return {"message": "OK", "allowed_methods": ["DELETE", "OPTIONS"]}
+    from fastapi.responses import Response
+    response = Response(
+        content="",
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app",
+            "Access-Control-Allow-Methods": "DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Origin, X-Requested-With",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400"
+        }
+    )
+    return response
 
 def _hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -452,23 +464,38 @@ def auth_reset(payload: dict = Body(...)):
 
 @router.delete("/auth/delete")
 def auth_delete(authorization: str | None = Header(default=None)):
+    logger.info("Delete account request received")
     if users_col is None or chats_col is None:
+        logger.error("Database not configured for delete account")
         raise HTTPException(status_code=500, detail="Database not configured")
     if not authorization or not authorization.lower().startswith("bearer "):
+        logger.warning("Missing or invalid authorization header")
         raise HTTPException(status_code=401, detail="Missing token")
     token = authorization.split(" ", 1)[1]
+    logger.info(f"Processing delete request for token: {token[:10]}...")
     payload = _decode_jwt(token)
     if not payload:
+        logger.warning("Invalid JWT token for delete account")
         raise HTTPException(status_code=401, detail="Invalid token")
     user_id = payload.get("sub")
+    logger.info(f"Deleting account for user ID: {user_id}")
+    
     # Delete user and chats
-    users_col.delete_one({"_id": users_col.database.client.get_default_database() and None})
     try:
         from bson import ObjectId
         users_col.delete_one({"_id": ObjectId(user_id)})
-    except Exception:
+        logger.info(f"User {user_id} deleted successfully")
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {e}")
         users_col.delete_one({"_id": user_id})
-    chats_col.delete_many({"userId": user_id})
+    
+    try:
+        chats_col.delete_many({"userId": user_id})
+        logger.info(f"Chats for user {user_id} deleted successfully")
+    except Exception as e:
+        logger.error(f"Error deleting chats for user {user_id}: {e}")
+    
+    logger.info(f"Account deletion completed for user {user_id}")
     return {"ok": True}
 
 @router.get("/chats")
