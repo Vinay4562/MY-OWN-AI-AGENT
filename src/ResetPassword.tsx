@@ -40,18 +40,33 @@ const ResetPasswordPage: React.FC = () => {
     try {
       setLoading(true);
       const apiBase = resolveApiBaseUrl();
+      console.log('Making request to:', `${apiBase}/auth/reset`);
+      console.log('Request payload:', { token: token.substring(0, 10) + '...', password: '***' });
+      
       const res = await fetch(`${apiBase}/auth/reset`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ token, password })
       });
+      
+      console.log('Response status:', res.status);
+      console.log('Response headers:', Object.fromEntries(res.headers.entries()));
+      
       if (!res.ok) {
         const text = await res.text();
+        console.error('Error response:', text);
         throw new Error(text || 'Failed to reset password');
       }
+      
+      const result = await res.json();
+      console.log('Success response:', result);
       setSuccess('Password reset successful. Redirecting to sign in...');
       setTimeout(() => { window.location.href = '/'; }, 1200);
     } catch (err: any) {
+      console.error('Fetch error:', err);
       setError(err?.message || 'Failed to reset password');
     } finally {
       setLoading(false);
