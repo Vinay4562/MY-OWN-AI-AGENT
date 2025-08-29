@@ -413,12 +413,18 @@ const App: React.FC = () => {
 
       // Send HTTP request to chat endpoint
       const apiBase = resolveApiBaseUrl();
+      console.log('Making chat request to:', `${apiBase}/chat/${encodeURIComponent(messageContent)}`);
+      console.log('Request payload:', { messageContent, attachment });
+      
       const response = await fetch(`${apiBase}/chat/${encodeURIComponent(messageContent)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -445,6 +451,11 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error('Chat request failed:', error);
+      console.error('Error details:', {
+        name: (error as any).name,
+        message: (error as any).message,
+        stack: (error as any).stack
+      });
       
       // Update AI message with error
       setMessages((prev) => {
