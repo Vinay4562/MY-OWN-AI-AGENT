@@ -252,15 +252,19 @@ const App: React.FC = () => {
   }
 
   function resolveApiBaseUrl(): string {
-    const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
-    if (override) return override as string;
+    const isOnVercel = /\.vercel\.app$/i.test(window.location.hostname);
+    // Force same-origin on Vercel to avoid CORS and external outages
+    if (!isOnVercel) {
+      const override = (window as any)._API_URL || process.env.REACT_APP_API_URL;
+      if (override) return override as string;
+    }
     const isHttps = window.location.protocol === 'https:';
     const httpProto = isHttps ? 'https' : 'http';
     if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000') {
       return `${httpProto}://localhost:8000`;
     }
-    // Use Render backend URL
-    return 'https://ai-agent-backend-vh0h.onrender.com';
+    // On Vercel, use same-origin serverless API to avoid CORS
+    return '';
   }
 
   function scheduleReconnect() {
@@ -464,11 +468,9 @@ const App: React.FC = () => {
       let usedWebSocket = false;
       try {
         connectWebSocket();
+        // Only use WebSocket if it is already OPEN. If it's CONNECTING, fall back to HTTP immediately
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
           ws.current.send(payloadToSend);
-          usedWebSocket = true;
-        } else if (ws.current && ws.current.readyState === WebSocket.CONNECTING) {
-          outboundQueue.current.push(payloadToSend);
           usedWebSocket = true;
         }
       } catch {}
