@@ -45,9 +45,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Local development
-        "https://my-own-ai-agent-b4rkwta1p-vinay-kumars-projects-f1559f4a.vercel.app",  # Your Vercel frontend
+        "https://my-own-ai-agent-b4rkwta1p-vinay-kumars-projects-f1559f4a.vercel.app",  # Your old Vercel frontend
+        "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app",  # Your new Vercel frontend
         "https://*.vercel.app",  # Any Vercel subdomain
         "https://*.onrender.com",  # Any Render subdomain
+        "https://my-own-ai-agent-*.vercel.app",  # Your specific Vercel project pattern
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
