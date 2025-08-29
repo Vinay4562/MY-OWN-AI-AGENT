@@ -476,6 +476,7 @@ const App: React.FC = () => {
       if (!usedWebSocket) {
         // Fallback to HTTP with timeout and multi-endpoint strategy
         const apiBase = resolveApiBaseUrl();
+        const isRenderBackend = !!apiBase && /onrender\.com$/i.test(new URL(apiBase).hostname);
         const chatUrlBase = apiBase ? `${apiBase}/chat` : '/api/chat';
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -494,26 +495,29 @@ const App: React.FC = () => {
 
         let data: any = null;
         try {
-          let response = await fetchWithTimeout(chatUrlBase, { method: 'POST', headers, body: JSON.stringify(postBody) });
-          if (!response.ok) {
-            const getResp = await fetchWithTimeout(`${chatUrlBase}?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
+          if (isRenderBackend) {
+            // Render backend expects GET /chat/{query}
+            const getResp = await fetchWithTimeout(`${apiBase}/chat/${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
             if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
             data = await getResp.json();
           } else {
-            data = await response.json();
+            let response = await fetchWithTimeout(chatUrlBase, { method: 'POST', headers, body: JSON.stringify(postBody) });
+            if (!response.ok) {
+              const getResp = await fetchWithTimeout(`${chatUrlBase}?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
+              if (!getResp.ok) throw new Error(`HTTP ${getResp.status}: ${getResp.statusText}`);
+              data = await getResp.json();
+            } else {
+              data = await response.json();
+            }
           }
         } catch (e) {
           // If same-origin fails/timeouts, try direct Render backend as a fallback
           try {
             const fallbackBase = 'https://ai-agent-backend-vh0h.onrender.com';
-            let resp2 = await fetchWithTimeout(`${fallbackBase}/chat`, { method: 'POST', headers, body: JSON.stringify(postBody) });
-            if (!resp2.ok) {
-              const get2 = await fetchWithTimeout(`${fallbackBase}/chat?q=${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
-              if (!get2.ok) throw new Error(`HTTP ${get2.status}: ${get2.statusText}`);
-              data = await get2.json();
-            } else {
-              data = await resp2.json();
-            }
+            // Use the Render path-param endpoint directly
+            const get2 = await fetchWithTimeout(`${fallbackBase}/chat/${encodeURIComponent(messageContent)}`, { method: 'GET', headers });
+            if (!get2.ok) throw new Error(`HTTP ${get2.status}: ${get2.statusText}`);
+            data = await get2.json();
           } catch (e2) {
             // Ultimately give a user-facing error
             setMessages((prev) => {
