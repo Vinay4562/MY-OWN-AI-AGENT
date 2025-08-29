@@ -1,6 +1,8 @@
 {
   "outputDirectory": "frontend/build",
-  "framework": "create-react-app",
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
   "rewrites": [
     {
       "source": "/api/test",
