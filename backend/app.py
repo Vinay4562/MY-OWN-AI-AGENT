@@ -52,8 +52,8 @@ app.add_middleware(
         "https://my-own-ai-agent-*.vercel.app",  # Your specific Vercel project pattern
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=["*", "Authorization", "Content-Type", "Accept"],
     expose_headers=["*"],
     max_age=86400,  # Cache preflight for 24 hours
 )
@@ -311,6 +311,11 @@ async def generate_suggestions(payload: dict = Body(...)):
 @router.options("/auth/{path:path}")
 async def auth_options(path: str):
     return {"message": "OK"}
+
+# Specific OPTIONS handler for delete endpoint
+@router.options("/auth/delete")
+async def delete_options():
+    return {"message": "OK", "allowed_methods": ["DELETE", "OPTIONS"]}
 
 def _hash_password(password: str) -> str:
     return pwd_context.hash(password)
