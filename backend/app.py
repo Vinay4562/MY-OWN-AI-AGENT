@@ -43,10 +43,17 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 # Allow CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://my-own-ai-agent-b4rkwta1p-vinay-kumars-projects-f1559f4a.vercel.app",  # Your Vercel frontend
+        "https://*.vercel.app",  # Any Vercel subdomain
+        "https://*.onrender.com",  # Any Render subdomain
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,  # Cache preflight for 24 hours
 )
 
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
@@ -298,6 +305,11 @@ async def generate_suggestions(payload: dict = Body(...)):
 
 # ===================== AUTH =====================
 
+# Handle preflight OPTIONS requests for auth endpoints
+@router.options("/auth/{path:path}")
+async def auth_options(path: str):
+    return {"message": "OK"}
+
 def _hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -397,17 +409,22 @@ def auth_forgot(payload: dict = Body(...)):
 
 @router.post("/auth/reset")
 def auth_reset(payload: dict = Body(...)):
+    logger.info(f"Password reset attempt received for token: {payload.get('token', '')[:10]}...")
     if users_col is None:
+        logger.error("Database not configured for password reset")
         raise HTTPException(status_code=500, detail="Database not configured")
     token = (payload.get("token") or "").strip()
     new_password = payload.get("password") or ""
     if not token or not new_password:
+        logger.warning("Missing token or password in reset request")
         raise HTTPException(status_code=400, detail="Missing token or password")
     user = users_col.find_one({"resetToken": token})
     if not user:
+        logger.warning(f"Invalid reset token: {token[:10]}...")
         raise HTTPException(status_code=400, detail="Invalid token")
     exp = int(user.get("resetTokenExp") or 0)
     if exp <= int(time.time()):
+        logger.warning(f"Expired reset token: {token[:10]}...")
         raise HTTPException(status_code=400, detail="Token expired")
     hashed = _hash_password(new_password)
     try:
@@ -421,6 +438,7 @@ def auth_reset(payload: dict = Body(...)):
             {"_id": user.get("_id")},
             {"$set": {"password": hashed}, "$unset": {"resetToken": "", "resetTokenExp": ""}},
         )
+    logger.info(f"Password reset successful for user: {user.get('email', 'unknown')}")
     return {"ok": True}
 
 
@@ -492,6 +510,10 @@ def save_chats(payload: dict = Body(...), authorization: str | None = Header(def
 @app.get("/")
 async def root():
     return {"message": "AI Agent Backend is running!", "status": "healthy"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "cors_enabled": True, "timestamp": int(time.time())}
 
 app.include_router(router)
 
