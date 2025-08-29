@@ -45,8 +45,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Local development
-        "https://my-own-ai-agent-b4rkwta1p-vinay-kumars-projects-f1559f4a.vercel.app",  # Your old Vercel frontend
-        "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app",  # Your new Vercel frontend
+        "https://my-own-ai-agent.vercel.app",  # Your main Vercel domain
+        "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app",  # Your preview Vercel domain
         "https://*.vercel.app",  # Any Vercel subdomain
         "https://*.onrender.com",  # Any Render subdomain
         "https://my-own-ai-agent-*.vercel.app",  # Your specific Vercel project pattern
@@ -316,11 +316,27 @@ async def auth_options(path: str):
 @router.options("/auth/delete")
 async def delete_options():
     from fastapi.responses import Response
+    # Get the origin from the request to dynamically set CORS headers
+    from fastapi import Request
+    request = Request
+    origin = request.headers.get("origin", "https://my-own-ai-agent.vercel.app")
+    
+    # Check if origin is one of our allowed domains
+    allowed_origins = [
+        "https://my-own-ai-agent.vercel.app",
+        "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app"
+    ]
+    
+    if origin in allowed_origins:
+        cors_origin = origin
+    else:
+        cors_origin = "https://my-own-ai-agent.vercel.app"  # Default to main domain
+    
     response = Response(
         content="",
         status_code=200,
         headers={
-            "Access-Control-Allow-Origin": "https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app",
+            "Access-Control-Allow-Origin": cors_origin,
             "Access-Control-Allow-Methods": "DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Origin, X-Requested-With",
             "Access-Control-Allow-Credentials": "true",
@@ -411,8 +427,8 @@ def auth_forgot(payload: dict = Body(...)):
             users_col.update_one({"_id": ObjectId(user.get("_id"))}, {"$set": {"resetToken": token, "resetTokenExp": expires}})
         except Exception:
             users_col.update_one({"_id": user.get("_id")}, {"$set": {"resetToken": token, "resetTokenExp": expires}})
-        # Use the current frontend URL instead of the old APP_URL
-        reset_link = f"https://my-own-ai-agent-hxcehl8hx-vinay-kumars-projects-f1559f4a.vercel.app/reset?token={token}"
+        # Use the main Vercel domain for password reset emails
+        reset_link = f"https://my-own-ai-agent.vercel.app/reset?token={token}"
         subject = "Password reset for My AI Agent"
         html = f"""
         <p>Hello,</p>
